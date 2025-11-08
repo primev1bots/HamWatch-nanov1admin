@@ -60,7 +60,7 @@ const TelegramNotifier: React.FC = () => {
     const checkBackendStatus = async () => {
       try {
         const response = await fetch(
-          "https://7a04fb8f-f6f0-44ff-81aa-4749b3cbe3cd.e1-us-east-azure.choreoapps.dev"
+          "https://eae7dc23-8c8d-4127-a292-423a4a309b09.e1-us-east-azure.choreoapps.dev"
         );
         if (response.ok) {
           const data = await response.json();
