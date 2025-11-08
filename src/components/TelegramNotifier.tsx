@@ -60,7 +60,7 @@ const TelegramNotifier: React.FC = () => {
     const checkBackendStatus = async () => {
       try {
         const response = await fetch(
-          "https://eae7dc23-8c8d-4127-a292-423a4a309b09.e1-us-east-azure.choreoapps.dev"
+          "https://31d71452-591a-481f-8388-0bc42d884c2a.e1-us-east-azure.choreoapps.dev"
         );
         if (response.ok) {
           const data = await response.json();
@@ -146,7 +146,7 @@ const TelegramNotifier: React.FC = () => {
   const testBotToken = async (token: string): Promise<boolean> => {
     try {
       const response = await fetch(
-        "https://eae7dc23-8c8d-4127-a292-423a4a309b09.e1-us-east-azure.choreoapps.dev",
+        "https://31d71452-591a-481f-8388-0bc42d884c2a.e1-us-east-azure.choreoapps.dev",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -201,7 +201,7 @@ const TelegramNotifier: React.FC = () => {
       const timeoutId = setTimeout(() => controller.abort(), 60000);
 
       const res = await fetch(
-        "https://eae7dc23-8c8d-4127-a292-423a4a309b09.e1-us-east-azure.choreoapps.dev",
+        "https://31d71452-591a-481f-8388-0bc42d884c2a.e1-us-east-azure.choreoapps.dev",
         {
           method: "POST",
           headers: {
