@@ -146,7 +146,7 @@ const TelegramNotifier: React.FC = () => {
   const testBotToken = async (token: string): Promise<boolean> => {
     try {
       const response = await fetch(
-        "https://cf287f23-1c3e-41ca-8c89-8ea0fcf09712.e1-us-east-azure.choreoapps.dev/api/test-notification",
+        "https://eae7dc23-8c8d-4127-a292-423a4a309b09.e1-us-east-azure.choreoapps.dev",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
