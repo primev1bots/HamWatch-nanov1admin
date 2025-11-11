@@ -126,7 +126,7 @@ const WithdrawalManagement: React.FC<WithdrawalManagementProps> = ({ walletConfi
     const transactionsRef = ref(database, 'transactions');
     
     const handleValueChange = async (snapshot: any) => {
-      console.log('📊 Firebase snapshot received:', snapshot.exists());
+      console.log('📊 snapshot received:', snapshot.exists());
       
       if (snapshot.exists()) {
         const allTransactions: Transaction[] = [];
@@ -232,7 +232,7 @@ const WithdrawalManagement: React.FC<WithdrawalManagementProps> = ({ walletConfi
     };
 
     const handleError = (error: any) => {
-      console.error('💥 Firebase error:', error);
+      console.error('💥 error:', error);
       setError(`Failed to load withdrawal requests: ${error.message}`);
       setLoading(false);
     };
@@ -677,7 +677,7 @@ const WithdrawalManagement: React.FC<WithdrawalManagementProps> = ({ walletConfi
         <div className="flex flex-col items-center space-y-4">
           <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
           <div className="text-white text-lg font-medium">Loading withdrawal requests...</div>
-          <div className="text-gray-400 text-sm">Checking Firebase database...</div>
+          <div className="text-gray-400 text-sm">Checking database...</div>
         </div>
       </div>
     );
@@ -695,9 +695,8 @@ const WithdrawalManagement: React.FC<WithdrawalManagementProps> = ({ walletConfi
           <div className="text-gray-500 text-xs mt-4">
             Please check:
             <ul className="mt-2 space-y-1 text-left">
-              <li>• Firebase database structure</li>
-              <li>• Browser console for detailed errors</li>
-              <li>• Firebase Realtime Database rules</li>
+              
+              <li>• Database rules</li>
             </ul>
           </div>
         </div>
@@ -735,7 +734,7 @@ const WithdrawalManagement: React.FC<WithdrawalManagementProps> = ({ walletConfi
             <span><strong>Total Requests:</strong> {withdrawalRequests.length}</span>
             <span><strong>Filtered:</strong> {filteredRequests.length}</span>
             <span><strong>Status:</strong> {statusFilter}</span>
-            <span><strong>Firebase:</strong> Connected</span>
+            <span><strong>db:</strong> Connected</span>
           </div>
         </div>
       </div>
