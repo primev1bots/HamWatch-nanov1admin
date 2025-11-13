@@ -64,6 +64,8 @@ interface Transaction {
   status: TransactionStatus;
   method?: string;
   accountNumber?: string;
+  accountDetails?: string;
+  paymentMethod?: string;
   processedAt?: number;
   rejectionReason?: string;
   user?: {
@@ -126,13 +128,13 @@ const WithdrawalManagement: React.FC<WithdrawalManagementProps> = ({ walletConfi
     const transactionsRef = ref(database, 'transactions');
     
     const handleValueChange = async (snapshot: any) => {
-      console.log('📊 snapshot received:', snapshot.exists());
+      console.log('📨 snapshot received:', snapshot.exists());
       
       if (snapshot.exists()) {
         const allTransactions: Transaction[] = [];
         const transactionData = snapshot.val();
         
-        console.log('📦 Raw transactions data structure:', Object.keys(transactionData));
+        console.log('📊 Raw transactions data structure:', Object.keys(transactionData));
         
         // Iterate through all user transactions
         Object.keys(transactionData).forEach(userId => {
@@ -144,6 +146,7 @@ const WithdrawalManagement: React.FC<WithdrawalManagementProps> = ({ walletConfi
             
             // Make sure we have all required fields and it's a withdrawal
             if (transaction.type === 'withdrawal') {
+              // Enhanced transaction parsing to handle different field names
               const withdrawalTransaction: Transaction = {
                 id: transactionId,
                 userId: parseInt(userId),
@@ -152,13 +155,23 @@ const WithdrawalManagement: React.FC<WithdrawalManagementProps> = ({ walletConfi
                 description: transaction.description || 'Withdrawal request',
                 timestamp: transaction.timestamp || Date.now(),
                 status: transaction.status || 'pending',
-                method: transaction.method,
-                accountNumber: transaction.accountNumber,
+                // Try multiple possible field names for account number
+                method: transaction.method || transaction.paymentMethod,
+                accountNumber: transaction.accountNumber || transaction.accountDetails,
+                paymentMethod: transaction.paymentMethod || transaction.method,
+                accountDetails: transaction.accountDetails || transaction.accountNumber,
                 processedAt: transaction.processedAt,
                 rejectionReason: transaction.rejectionReason
               };
               
-              console.log(`💳 Found withdrawal: ${withdrawalTransaction.id} for user ${withdrawalTransaction.userId}, amount: ${withdrawalTransaction.amount}, status: ${withdrawalTransaction.status}`);
+              console.log(`💳 Found withdrawal: ${withdrawalTransaction.id} for user ${withdrawalTransaction.userId}`, {
+                amount: withdrawalTransaction.amount,
+                status: withdrawalTransaction.status,
+                method: withdrawalTransaction.method,
+                accountNumber: withdrawalTransaction.accountNumber,
+                paymentMethod: withdrawalTransaction.paymentMethod,
+                accountDetails: withdrawalTransaction.accountDetails
+              });
               allTransactions.push(withdrawalTransaction);
             }
           });
@@ -294,7 +307,7 @@ const WithdrawalManagement: React.FC<WithdrawalManagementProps> = ({ walletConfi
         await update(userRef, {
           totalWithdrawn: newTotalWithdrawn
         });
-        console.log(`💰 Updated total withdrawn for user ${transaction.userId} to ${newTotalWithdrawn}`);
+        console.log(`💳 Updated total withdrawn for user ${transaction.userId} to ${newTotalWithdrawn}`);
       }
 
       // Update local state
@@ -354,7 +367,7 @@ const WithdrawalManagement: React.FC<WithdrawalManagementProps> = ({ walletConfi
         await update(userRef, {
           balance: newBalance
         });
-        console.log(`💰 Refunded ${withdrawalAmount} to user ${transaction.userId}, new balance: ${newBalance}`);
+        console.log(`💳 Refunded ${withdrawalAmount} to user ${transaction.userId}, new balance: ${newBalance}`);
       }
 
       // Update local state
@@ -440,236 +453,275 @@ const WithdrawalManagement: React.FC<WithdrawalManagementProps> = ({ walletConfi
     });
   };
 
+  // Helper function to get display account info
+  const getAccountDisplayInfo = (transaction: Transaction) => {
+    // Try multiple possible field names
+    const accountNumber = transaction.accountNumber || transaction.accountDetails;
+    const method = transaction.method || transaction.paymentMethod;
+    
+    return {
+      accountNumber,
+      method,
+      hasAccountInfo: !!accountNumber
+    };
+  };
+
   // Mobile Transaction Card Component
-  const MobileTransactionCard = ({ transaction }: { transaction: Transaction }) => (
-    <div className="bg-gray-800/30 backdrop-blur-xl rounded-2xl p-4 border border-gray-700/50 mb-4">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-xl flex items-center justify-center border border-blue-500/30">
-            <User className="w-5 h-5 text-blue-400" />
+  const MobileTransactionCard = ({ transaction }: { transaction: Transaction }) => {
+    const { accountNumber, method, hasAccountInfo } = getAccountDisplayInfo(transaction);
+    
+    return (
+      <div className="bg-gray-800/30 backdrop-blur-xl rounded-2xl p-4 border border-gray-700/50 mb-4">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-xl flex items-center justify-center border border-blue-500/30">
+              <User className="w-5 h-5 text-blue-400" />
+            </div>
+            <div>
+              <div className="font-semibold text-white">
+                {transaction.user?.firstName && transaction.user?.lastName 
+                  ? `${transaction.user.firstName} ${transaction.user.lastName}`
+                  : `User ${transaction.userId}`
+                }
+              </div>
+              {transaction.user?.username && (
+                <div className="text-sm text-blue-400">@{transaction.user.username}</div>
+              )}
+            </div>
           </div>
+          <button
+            onClick={() => setSelectedTransaction(transaction)}
+            className="p-2 hover:bg-gray-700/50 rounded-xl transition-colors"
+          >
+            <MoreVertical className="w-5 h-5 text-gray-400" />
+          </button>
+        </div>
+
+        {/* Amount and Method */}
+        <div className="flex items-center justify-between mb-3">
           <div>
-            <div className="font-semibold text-white">
-              {transaction.user?.firstName && transaction.user?.lastName 
-                ? `${transaction.user.firstName} ${transaction.user.lastName}`
-                : `User ${transaction.userId}`
-              }
-            </div>
-            {transaction.user?.username && (
-              <div className="text-sm text-blue-400">@{transaction.user.username}</div>
-            )}
-          </div>
-        </div>
-        <button
-          onClick={() => setSelectedTransaction(transaction)}
-          className="p-2 hover:bg-gray-700/50 rounded-xl transition-colors"
-        >
-          <MoreVertical className="w-5 h-5 text-gray-400" />
-        </button>
-      </div>
-
-      {/* Amount and Method */}
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <div className="font-bold text-xl text-white">
-            {walletConfig.currencySymbol}
-            {Math.abs(transaction.amount).toFixed(2)}
-          </div>
-          <div className="text-sm text-gray-400">{walletConfig.currency}</div>
-        </div>
-        <div className={`inline-flex items-center space-x-2 px-3 py-1.5 rounded-xl border ${getStatusColor(transaction.status)}`}>
-          {getStatusIcon(transaction.status)}
-          <span className="text-sm font-medium">
-            {getStatusText(transaction.status)}
-          </span>
-        </div>
-      </div>
-
-      {/* Account Details */}
-      {transaction.accountNumber && (
-        <div className="flex items-center space-x-2 mb-3">
-          <CreditCard className="w-4 h-4 text-gray-500" />
-          <span className="text-sm text-gray-400 font-mono">
-            {transaction.accountNumber}
-          </span>
-        </div>
-      )}
-
-      {/* Description */}
-      <div className="text-sm text-gray-300 mb-3">
-        {transaction.description}
-      </div>
-
-      {/* Date */}
-      <div className="flex items-center space-x-2 text-sm text-gray-400 mb-4">
-        <Calendar className="w-4 h-4" />
-        <span>{formatDate(transaction.timestamp)}</span>
-      </div>
-
-      {/* Actions for pending transactions */}
-      {transaction.status === 'pending' && (
-        <div className="flex space-x-3">
-          <button
-            onClick={() => handleApprove(transaction)}
-            disabled={processingId === transaction.id}
-            className="flex-1 inline-flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-xl font-semibold text-sm transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {processingId === transaction.id ? (
-              <Loader className="w-4 h-4 animate-spin" />
-            ) : (
-              <CheckCircle className="w-4 h-4" />
-            )}
-            <span>{processingId === transaction.id ? 'Processing...' : 'Approve'}</span>
-          </button>
-          <button
-            onClick={() => handleReject(transaction)}
-            disabled={processingId === transaction.id}
-            className="flex-1 inline-flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-xl font-semibold text-sm transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {processingId === transaction.id ? (
-              <Loader className="w-4 h-4 animate-spin" />
-            ) : (
-              <XCircle className="w-4 h-4" />
-            )}
-            <span>{processingId === transaction.id ? 'Processing...' : 'Reject'}</span>
-          </button>
-        </div>
-      )}
-    </div>
-  );
-
-  // Mobile Detail View
-  const MobileDetailView = ({ transaction }: { transaction: Transaction }) => (
-    <div className="fixed inset-0 bg-gray-900 z-50 p-4 overflow-y-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <button
-          onClick={() => setSelectedTransaction(null)}
-          className="p-3 hover:bg-gray-700/50 rounded-2xl transition-all duration-200"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <h2 className="text-xl font-bold text-white">Transaction Details</h2>
-        <div className="w-10"></div>
-      </div>
-
-      <div className="bg-gray-800/30 backdrop-blur-xl rounded-2xl p-6 border border-gray-700/50 mb-6">
-        {/* User Info */}
-        <div className="flex items-center space-x-4 mb-6">
-          <div className="w-16 h-16 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-2xl flex items-center justify-center border border-blue-500/30">
-            <User className="w-8 h-8 text-blue-400" />
-          </div>
-          <div className="flex-1">
-            <div className="font-bold text-white text-lg">
-              {transaction.user?.firstName && transaction.user?.lastName 
-                ? `${transaction.user.firstName} ${transaction.user.lastName}`
-                : `User ${transaction.userId}`
-              }
-            </div>
-            {transaction.user?.username && (
-              <div className="text-blue-400 text-sm">@{transaction.user.username}</div>
-            )}
-            <div className="text-gray-400 text-sm mt-1">User ID: {transaction.userId}</div>
-          </div>
-        </div>
-
-        {/* Amount and Status */}
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className="bg-gray-700/50 rounded-xl p-4">
-            <div className="text-gray-400 text-sm mb-1">Amount</div>
-            <div className="font-bold text-2xl text-white">
+            <div className="font-bold text-xl text-white">
               {walletConfig.currencySymbol}
               {Math.abs(transaction.amount).toFixed(2)}
             </div>
-            <div className="text-gray-400 text-sm">{walletConfig.currency}</div>
+            <div className="text-sm text-gray-400">{walletConfig.currency}</div>
           </div>
-          <div className="bg-gray-700/50 rounded-xl p-4">
-            <div className="text-gray-400 text-sm mb-1">Status</div>
-            <div className={`inline-flex items-center space-x-2 px-3 py-1.5 rounded-lg border ${getStatusColor(transaction.status)}`}>
-              {getStatusIcon(transaction.status)}
-              <span className="text-sm font-medium">
-                {getStatusText(transaction.status)}
-              </span>
-            </div>
+          <div className={`inline-flex items-center space-x-2 px-3 py-1.5 rounded-xl border ${getStatusColor(transaction.status)}`}>
+            {getStatusIcon(transaction.status)}
+            <span className="text-sm font-medium">
+              {getStatusText(transaction.status)}
+            </span>
           </div>
         </div>
 
-        {/* Transaction Details */}
-        <div className="space-y-4">
-          <div>
-            <div className="text-gray-400 text-sm mb-1">Description</div>
-            <div className="text-white font-medium">
-              {transaction.description}
-            </div>
+        {/* Account Details */}
+        {hasAccountInfo && (
+          <div className="space-y-2 mb-3">
+            {method && (
+              <div className="flex items-center space-x-2">
+                <CreditCard className="w-4 h-4 text-gray-500" />
+                <span className="text-sm text-gray-400">
+                  Method: <span className="text-white font-medium">{method}</span>
+                </span>
+              </div>
+            )}
+            {accountNumber && (
+              <div className="flex items-center space-x-2">
+                <CreditCard className="w-4 h-4 text-gray-500" />
+                <span className="text-sm text-gray-400 font-mono break-all">
+                  Account: {accountNumber}
+                </span>
+              </div>
+            )}
           </div>
-          
-          {transaction.accountNumber && (
-            <div>
-              <div className="text-gray-400 text-sm mb-1">Account Number</div>
-              <div className="text-white font-mono">{transaction.accountNumber}</div>
-            </div>
-          )}
+        )}
 
-          {transaction.method && (
-            <div>
-              <div className="text-gray-400 text-sm mb-1">Payment Method</div>
-              <div className="text-white font-medium">{transaction.method}</div>
-            </div>
-          )}
-
-          <div>
-            <div className="text-gray-400 text-sm mb-1">Created</div>
-            <div className="text-white">{formatDate(transaction.timestamp)}</div>
-          </div>
-
-          {transaction.processedAt && (
-            <div>
-              <div className="text-gray-400 text-sm mb-1">Processed</div>
-              <div className="text-white">{formatDate(transaction.processedAt)}</div>
-            </div>
-          )}
-
-          {transaction.rejectionReason && (
-            <div>
-              <div className="text-gray-400 text-sm mb-1">Rejection Reason</div>
-              <div className="text-red-400">{transaction.rejectionReason}</div>
-            </div>
-          )}
+        {/* Description */}
+        <div className="text-sm text-gray-300 mb-3">
+          {transaction.description}
         </div>
+
+        {/* Date */}
+        <div className="flex items-center space-x-2 text-sm text-gray-400 mb-4">
+          <Calendar className="w-4 h-4" />
+          <span>{formatDate(transaction.timestamp)}</span>
+        </div>
+
+        {/* Actions for pending transactions */}
+        {transaction.status === 'pending' && (
+          <div className="flex space-x-3">
+            <button
+              onClick={() => handleApprove(transaction)}
+              disabled={processingId === transaction.id}
+              className="flex-1 inline-flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-xl font-semibold text-sm transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {processingId === transaction.id ? (
+                <Loader className="w-4 h-4 animate-spin" />
+              ) : (
+                <CheckCircle className="w-4 h-4" />
+              )}
+              <span>{processingId === transaction.id ? 'Processing...' : 'Approve'}</span>
+            </button>
+            <button
+              onClick={() => handleReject(transaction)}
+              disabled={processingId === transaction.id}
+              className="flex-1 inline-flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-xl font-semibold text-sm transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {processingId === transaction.id ? (
+                <Loader className="w-4 h-4 animate-spin" />
+              ) : (
+                <XCircle className="w-4 h-4" />
+              )}
+              <span>{processingId === transaction.id ? 'Processing...' : 'Reject'}</span>
+            </button>
+          </div>
+        )}
       </div>
+    );
+  };
 
-      {/* Actions */}
-      {transaction.status === 'pending' && (
-        <div className="flex space-x-3">
+  // Mobile Detail View
+  const MobileDetailView = ({ transaction }: { transaction: Transaction }) => {
+    const { accountNumber, method, hasAccountInfo } = getAccountDisplayInfo(transaction);
+    
+    return (
+      <div className="fixed inset-0 bg-gray-900 z-50 p-4 overflow-y-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
           <button
-            onClick={() => handleApprove(transaction)}
-            disabled={processingId === transaction.id}
-            className="flex-1 inline-flex items-center justify-center space-x-2 px-6 py-4 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-2xl font-semibold text-base transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={() => setSelectedTransaction(null)}
+            className="p-3 hover:bg-gray-700/50 rounded-2xl transition-all duration-200"
           >
-            {processingId === transaction.id ? (
-              <Loader className="w-5 h-5 animate-spin" />
-            ) : (
-              <CheckCircle className="w-5 h-5" />
-            )}
-            <span>{processingId === transaction.id ? 'Processing...' : 'Approve'}</span>
+            <ArrowLeft className="w-5 h-5" />
           </button>
-          <button
-            onClick={() => handleReject(transaction)}
-            disabled={processingId === transaction.id}
-            className="flex-1 inline-flex items-center justify-center space-x-2 px-6 py-4 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-2xl font-semibold text-base transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {processingId === transaction.id ? (
-              <Loader className="w-5 h-5 animate-spin" />
-            ) : (
-              <XCircle className="w-5 h-5" />
-            )}
-            <span>{processingId === transaction.id ? 'Processing...' : 'Reject'}</span>
-          </button>
+          <h2 className="text-xl font-bold text-white">Transaction Details</h2>
+          <div className="w-10"></div>
         </div>
-      )}
-    </div>
-  );
+
+        <div className="bg-gray-800/30 backdrop-blur-xl rounded-2xl p-6 border border-gray-700/50 mb-6">
+          {/* User Info */}
+          <div className="flex items-center space-x-4 mb-6">
+            <div className="w-16 h-16 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-2xl flex items-center justify-center border border-blue-500/30">
+              <User className="w-8 h-8 text-blue-400" />
+            </div>
+            <div className="flex-1">
+              <div className="font-bold text-white text-lg">
+                {transaction.user?.firstName && transaction.user?.lastName 
+                  ? `${transaction.user.firstName} ${transaction.user.lastName}`
+                  : `User ${transaction.userId}`
+                }
+              </div>
+              {transaction.user?.username && (
+                <div className="text-blue-400 text-sm">@{transaction.user.username}</div>
+              )}
+              <div className="text-gray-400 text-sm mt-1">User ID: {transaction.userId}</div>
+            </div>
+          </div>
+
+          {/* Amount and Status */}
+          <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="bg-gray-700/50 rounded-xl p-4">
+              <div className="text-gray-400 text-sm mb-1">Amount</div>
+              <div className="font-bold text-2xl text-white">
+                {walletConfig.currencySymbol}
+                {Math.abs(transaction.amount).toFixed(2)}
+              </div>
+              <div className="text-gray-400 text-sm">{walletConfig.currency}</div>
+            </div>
+            <div className="bg-gray-700/50 rounded-xl p-4">
+              <div className="text-gray-400 text-sm mb-1">Status</div>
+              <div className={`inline-flex items-center space-x-2 px-3 py-1.5 rounded-lg border ${getStatusColor(transaction.status)}`}>
+                {getStatusIcon(transaction.status)}
+                <span className="text-sm font-medium">
+                  {getStatusText(transaction.status)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Transaction Details */}
+          <div className="space-y-4">
+            <div>
+              <div className="text-gray-400 text-sm mb-1">Description</div>
+              <div className="text-white font-medium">
+                {transaction.description}
+              </div>
+            </div>
+            
+            {hasAccountInfo && (
+              <>
+                {method && (
+                  <div>
+                    <div className="text-gray-400 text-sm mb-1">Payment Method</div>
+                    <div className="text-white font-medium">{method}</div>
+                  </div>
+                )}
+                
+                {accountNumber && (
+                  <div>
+                    <div className="text-gray-400 text-sm mb-1">Account Number</div>
+                    <div className="text-white font-mono break-all bg-gray-700/50 p-2 rounded-lg">
+                      {accountNumber}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            <div>
+              <div className="text-gray-400 text-sm mb-1">Created</div>
+              <div className="text-white">{formatDate(transaction.timestamp)}</div>
+            </div>
+
+            {transaction.processedAt && (
+              <div>
+                <div className="text-gray-400 text-sm mb-1">Processed</div>
+                <div className="text-white">{formatDate(transaction.processedAt)}</div>
+              </div>
+            )}
+
+            {transaction.rejectionReason && (
+              <div>
+                <div className="text-gray-400 text-sm mb-1">Rejection Reason</div>
+                <div className="text-red-400">{transaction.rejectionReason}</div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Actions */}
+        {transaction.status === 'pending' && (
+          <div className="flex space-x-3">
+            <button
+              onClick={() => handleApprove(transaction)}
+              disabled={processingId === transaction.id}
+              className="flex-1 inline-flex items-center justify-center space-x-2 px-6 py-4 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-2xl font-semibold text-base transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {processingId === transaction.id ? (
+                <Loader className="w-5 h-5 animate-spin" />
+              ) : (
+                <CheckCircle className="w-5 h-5" />
+              )}
+              <span>{processingId === transaction.id ? 'Processing...' : 'Approve'}</span>
+            </button>
+            <button
+              onClick={() => handleReject(transaction)}
+              disabled={processingId === transaction.id}
+              className="flex-1 inline-flex items-center justify-center space-x-2 px-6 py-4 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-2xl font-semibold text-base transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {processingId === transaction.id ? (
+                <Loader className="w-5 h-5 animate-spin" />
+              ) : (
+                <XCircle className="w-5 h-5" />
+              )}
+              <span>{processingId === transaction.id ? 'Processing...' : 'Reject'}</span>
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   if (loading) {
     return (
@@ -695,8 +747,9 @@ const WithdrawalManagement: React.FC<WithdrawalManagementProps> = ({ walletConfi
           <div className="text-gray-500 text-xs mt-4">
             Please check:
             <ul className="mt-2 space-y-1 text-left">
-              
               <li>• Database rules</li>
+              <li>• Transaction data structure</li>
+              <li>• Network connection</li>
             </ul>
           </div>
         </div>
@@ -734,6 +787,7 @@ const WithdrawalManagement: React.FC<WithdrawalManagementProps> = ({ walletConfi
             <span><strong>Total Requests:</strong> {withdrawalRequests.length}</span>
             <span><strong>Filtered:</strong> {filteredRequests.length}</span>
             <span><strong>Status:</strong> {statusFilter}</span>
+            <span><strong>With Account Info:</strong> {withdrawalRequests.filter(t => getAccountDisplayInfo(t).hasAccountInfo).length}</span>
             <span><strong>db:</strong> Connected</span>
           </div>
         </div>
@@ -865,6 +919,9 @@ const WithdrawalManagement: React.FC<WithdrawalManagementProps> = ({ walletConfi
                         Amount & Method
                       </th>
                       <th className="px-4 sm:px-6 py-4 text-left text-sm font-semibold text-gray-300 uppercase tracking-wider">
+                        Account Details
+                      </th>
+                      <th className="px-4 sm:px-6 py-4 text-left text-sm font-semibold text-gray-300 uppercase tracking-wider">
                         Status
                       </th>
                       <th className="px-4 sm:px-6 py-4 text-left text-sm font-semibold text-gray-300 uppercase tracking-wider">
@@ -876,125 +933,136 @@ const WithdrawalManagement: React.FC<WithdrawalManagementProps> = ({ walletConfi
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-700/30">
-                    {currentItems.map((transaction) => (
-                      <tr 
-                        key={`${transaction.userId}-${transaction.id}`} 
-                        className="hover:bg-gray-700/20 transition-all duration-200 group"
-                      >
-                        <td className="px-4 sm:px-6 py-4">
-                          <div className="flex items-center space-x-3 sm:space-x-4">
-                            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-xl flex items-center justify-center border border-blue-500/30">
-                              <User className="w-5 h-5 sm:w-6 sm:h-6 text-blue-400" />
+                    {currentItems.map((transaction) => {
+                      const { accountNumber, method, hasAccountInfo } = getAccountDisplayInfo(transaction);
+                      
+                      return (
+                        <tr 
+                          key={`${transaction.userId}-${transaction.id}`} 
+                          className="hover:bg-gray-700/20 transition-all duration-200 group"
+                        >
+                          <td className="px-4 sm:px-6 py-4">
+                            <div className="flex items-center space-x-3 sm:space-x-4">
+                              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-xl flex items-center justify-center border border-blue-500/30">
+                                <User className="w-5 h-5 sm:w-6 sm:h-6 text-blue-400" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center space-x-2">
+                                  <div className="font-semibold text-white group-hover:text-blue-300 transition-colors text-sm sm:text-base">
+                                    {transaction.user?.firstName && transaction.user?.lastName 
+                                      ? `${transaction.user.firstName} ${transaction.user.lastName}`
+                                      : `User ${transaction.userId}`
+                                    }
+                                  </div>
+                                </div>
+                                <div className="text-xs sm:text-sm text-gray-400 mt-1 truncate">
+                                  User ID: {transaction.userId}
+                                </div>
+                                {transaction.user?.username && (
+                                  <div className="text-xs sm:text-sm text-blue-400 mt-1">
+                                    @{transaction.user.username}
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                            <div className="flex-1 min-w-0">
+                          </td>
+                          <td className="px-4 sm:px-6 py-4">
+                            <div className="space-y-2">
                               <div className="flex items-center space-x-2">
-                                <div className="font-semibold text-white group-hover:text-blue-300 transition-colors text-sm sm:text-base">
-                                  {transaction.user?.firstName && transaction.user?.lastName 
-                                    ? `${transaction.user.firstName} ${transaction.user.lastName}`
-                                    : `User ${transaction.userId}`
-                                  }
+                                <div className="font-bold text-lg sm:text-xl text-white">
+                                  {walletConfig.currencySymbol}
+                                  {Math.abs(transaction.amount).toFixed(2)}
                                 </div>
+                                <span className="text-xs sm:text-sm text-gray-400 px-2 py-1 bg-gray-700/50 rounded-lg">
+                                  {walletConfig.currency}
+                                </span>
                               </div>
-                              <div className="text-xs sm:text-sm text-gray-400 mt-1 truncate">
-                                User ID: {transaction.userId}
+                              <div className="text-xs sm:text-sm text-gray-400">
+                                {transaction.description}
                               </div>
-                              {transaction.user?.username && (
-                                <div className="text-xs sm:text-sm text-blue-400 mt-1">
-                                  @{transaction.user.username}
-                                </div>
-                              )}
-                              {transaction.accountNumber && (
-                                <div className="flex items-center space-x-2 mt-2">
-                                  <CreditCard className="w-3 h-3 sm:w-4 sm:h-4 text-gray-500" />
-                                  <span className="text-xs sm:text-sm text-gray-400 font-mono">
-                                    {transaction.accountNumber}
-                                  </span>
+                              {method && (
+                                <div className="text-xs sm:text-sm text-blue-400 font-medium">
+                                  {method}
                                 </div>
                               )}
                             </div>
-                          </div>
-                        </td>
-                        <td className="px-4 sm:px-6 py-4">
-                          <div className="space-y-2">
-                            <div className="flex items-center space-x-2">
-                              <div className="font-bold text-lg sm:text-xl text-white">
-                                {walletConfig.currencySymbol}
-                                {Math.abs(transaction.amount).toFixed(2)}
+                          </td>
+                          <td className="px-4 sm:px-6 py-4">
+                            {hasAccountInfo ? (
+                              <div className="space-y-1">
+                                {accountNumber && (
+                                  <div className="text-xs sm:text-sm text-white font-mono break-all bg-gray-700/50 p-2 rounded-lg border border-gray-600/50">
+                                    {accountNumber}
+                                  </div>
+                                )}
                               </div>
-                              <span className="text-xs sm:text-sm text-gray-400 px-2 py-1 bg-gray-700/50 rounded-lg">
-                                {walletConfig.currency}
+                            ) : (
+                              <span className="text-gray-500 text-xs sm:text-sm italic">
+                                No account details
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 sm:px-6 py-4">
+                            <div className={`inline-flex items-center space-x-2 px-3 py-2 rounded-xl border ${getStatusColor(transaction.status)}`}>
+                              {getStatusIcon(transaction.status)}
+                              <span className="text-sm font-medium">
+                                {getStatusText(transaction.status)}
                               </span>
                             </div>
-                            <div className="text-xs sm:text-sm text-gray-400">
-                              {transaction.description}
+                          </td>
+                          <td className="px-4 sm:px-6 py-4">
+                            <div className="flex items-center space-x-2 text-xs sm:text-sm text-gray-400">
+                              <Calendar className="w-4 h-4" />
+                              <span>{formatDate(transaction.timestamp)}</span>
                             </div>
-                            {transaction.method && (
-                              <div className="text-xs sm:text-sm text-gray-500">
-                                Via {transaction.method}
+                            {transaction.processedAt && (
+                              <div className="text-xs text-gray-500 mt-1">
+                                Processed: {formatDate(transaction.processedAt)}
                               </div>
                             )}
-                          </div>
-                        </td>
-                        <td className="px-4 sm:px-6 py-4">
-                          <div className={`inline-flex items-center space-x-2 px-3 py-2 rounded-xl border ${getStatusColor(transaction.status)}`}>
-                            {getStatusIcon(transaction.status)}
-                            <span className="text-sm font-medium">
-                              {getStatusText(transaction.status)}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-4 sm:px-6 py-4">
-                          <div className="flex items-center space-x-2 text-xs sm:text-sm text-gray-400">
-                            <Calendar className="w-4 h-4" />
-                            <span>{formatDate(transaction.timestamp)}</span>
-                          </div>
-                          {transaction.processedAt && (
-                            <div className="text-xs text-gray-500 mt-1">
-                              Processed: {formatDate(transaction.processedAt)}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-4 sm:px-6 py-4">
-                          {transaction.status === 'pending' && (
-                            <div className="flex space-x-2 sm:space-x-3">
-                              <button
-                                onClick={() => handleApprove(transaction)}
-                                disabled={processingId === transaction.id}
-                                className="inline-flex items-center space-x-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-xl font-semibold text-xs sm:text-sm transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100 shadow-lg shadow-green-500/20"
-                              >
-                                {processingId === transaction.id ? (
-                                  <Loader className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" />
-                                ) : (
-                                  <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4" />
-                                )}
-                                <span>
-                                  {processingId === transaction.id ? 'Processing...' : 'Approve'}
-                                </span>
-                              </button>
-                              <button
-                                onClick={() => handleReject(transaction)}
-                                disabled={processingId === transaction.id}
-                                className="inline-flex items-center space-x-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-xl font-semibold text-xs sm:text-sm transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100 shadow-lg shadow-red-500/20"
-                              >
-                                {processingId === transaction.id ? (
-                                  <Loader className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" />
-                                ) : (
-                                  <XCircle className="w-3 h-3 sm:w-4 sm:h-4" />
-                                )}
-                                <span>
-                                  {processingId === transaction.id ? 'Processing...' : 'Reject'}
-                                </span>
-                              </button>
-                            </div>
-                          )}
-                          {transaction.status !== 'pending' && (
-                            <span className="text-gray-500 text-xs sm:text-sm italic">
-                              Already processed
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className="px-4 sm:px-6 py-4">
+                            {transaction.status === 'pending' && (
+                              <div className="flex space-x-2 sm:space-x-3">
+                                <button
+                                  onClick={() => handleApprove(transaction)}
+                                  disabled={processingId === transaction.id}
+                                  className="inline-flex items-center space-x-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-xl font-semibold text-xs sm:text-sm transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100 shadow-lg shadow-green-500/20"
+                                >
+                                  {processingId === transaction.id ? (
+                                    <Loader className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" />
+                                  ) : (
+                                    <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4" />
+                                  )}
+                                  <span>
+                                    {processingId === transaction.id ? 'Processing...' : 'Approve'}
+                                  </span>
+                                </button>
+                                <button
+                                  onClick={() => handleReject(transaction)}
+                                  disabled={processingId === transaction.id}
+                                  className="inline-flex items-center space-x-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-xl font-semibold text-xs sm:text-sm transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100 shadow-lg shadow-red-500/20"
+                                >
+                                  {processingId === transaction.id ? (
+                                    <Loader className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" />
+                                  ) : (
+                                    <XCircle className="w-3 h-3 sm:w-4 sm:h-4" />
+                                  )}
+                                  <span>
+                                    {processingId === transaction.id ? 'Processing...' : 'Reject'}
+                                  </span>
+                                </button>
+                              </div>
+                            )}
+                            {transaction.status !== 'pending' && (
+                              <span className="text-gray-500 text-xs sm:text-sm italic">
+                                Already processed
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
