@@ -1,7 +1,7 @@
 // Withdrawal.tsx
 import React, { useState, useEffect } from 'react';
 import { ref, onValue, off, update } from 'firebase/database';
-import { database } from '../firebase';
+import { database } from './firebase';
 import { CheckCircle, XCircle, Search, Filter, ArrowLeft, AlertCircle, User, Calendar, DollarSign, CreditCard, Loader, MoreVertical } from 'lucide-react';
 
 interface Transaction {
